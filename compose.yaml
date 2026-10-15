@@ -21,7 +21,7 @@ services:
       EJABBERD_TLS_SERVER_NAME: "${EJABBERD_TLS_SERVER_NAME:-localhost}"
       EJABBERD_CA_FILE: /app/certs/ejabberd.crt
     ports:
-      - "127.0.0.1:${DJANGO_WEB_PORT:-8000}:8000"
+      - "0.0.0.0:${DJANGO_WEB_PORT:-80}:8000"
     volumes:
       - type: bind
         source: ./certs/ejabberd.crt

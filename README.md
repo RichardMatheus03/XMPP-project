@@ -6,7 +6,7 @@ HTTPS, autenticado com a conta administrativa do `.env`.
 
 ```text
 Navegador → página e API Django → API HTTPS do ejabberd → conta XMPP
-           localhost:8000        ejabberd:5443            nome@localhost
+           localhost:80          ejabberd:5443            nome@localhost
 ```
 
 O Compose tem dois serviços:
@@ -35,12 +35,14 @@ cd "/home/richard/Documentos/UFRN 2026.2/unidade II/aplicacao-ejabberd"
 docker compose up -d --build --wait
 ```
 
-Abra **http://localhost:8000**. Preencha usuário e senha e clique em **Criar
+Abra **http://localhost**. Preencha usuário e senha e clique em **Criar
 minha conta**. O endereço completo da conta aparece após a confirmação do
 ejabberd. Por exemplo, o usuário `ana` resulta em `ana@localhost`.
 
-O cadastro é público para quem consegue acessar a página. As portas publicadas
-pelo Compose estão limitadas à máquina local (`127.0.0.1`).
+O cadastro é público para quem consegue acessar a página. O Django é publicado
+na porta `80` em todas as interfaces da máquina. As portas do ejabberd continuam
+limitadas à máquina local (`127.0.0.1`). Para acesso ao Django pela VPS, inclua
+seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e libere TCP `80` no firewall.
 
 O formulário aceita nomes de 3 a 64 caracteres, começando com letra ou número,
 e contendo letras, números, ponto, hífen ou sublinhado. Os nomes são convertidos
@@ -49,7 +51,7 @@ espaços. Ela não é armazenada no Django nem devolvida na resposta da API.
 
 ## Chat no navegador
 
-Abra **http://localhost:8000/chat/** (ou `/chat`, que redireciona para essa rota).
+Abra **http://localhost/chat/** (ou `/chat`, que redireciona para essa rota).
 Entre com o usuário ou JID completo, como `ana@localhost`, e a senha escolhida
 no cadastro. Use **+ / Nova conversa** para informar outra conta e conversar.
 Enter envia; Shift + Enter insere uma linha. A busca filtra as conversas abertas.
@@ -132,7 +134,7 @@ projeto para outra máquina e gere suas próprias senhas e chave Django.
 | `EJABBERD_ADMIN_USER` | Nome da conta administrativa; padrão `admin` |
 | `EJABBERD_ADMIN_PASSWORD` | Senha dessa conta, usada para autenticar o backend |
 | `DJANGO_SECRET_KEY` | Chave aleatória exclusiva do Django |
-| `DJANGO_WEB_PORT` | Porta da página na máquina; padrão `8000` |
+| `DJANGO_WEB_PORT` | Porta da página na máquina; padrão `80` |
 | `DJANGO_ALLOWED_HOSTS` | Nomes HTTP aceitos pelo Django, separados por vírgulas |
 | `EJABBERD_API_HOST` | Nome de rede do container; padrão `ejabberd` |
 | `EJABBERD_API_PORT` | Porta HTTPS interna; padrão `5443` |
