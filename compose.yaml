@@ -1,0 +1,71 @@
+name: aplicacao-ejabberd
+
+services:
+  web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    depends_on:
+      ejabberd:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:?Defina DJANGO_SECRET_KEY no arquivo .env}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}"
+      XMPP_DOMAIN: "${XMPP_DOMAIN:-localhost}"
+      XMPP_WEBSOCKET_URL: "${XMPP_WEBSOCKET_URL:-}"
+      XMPP_WEBSOCKET_PORT: "${EJABBERD_WEB_PORT:-5280}"
+      EJABBERD_ADMIN_USER: "${EJABBERD_ADMIN_USER:-admin}"
+      EJABBERD_ADMIN_PASSWORD: "${EJABBERD_ADMIN_PASSWORD:?Defina EJABBERD_ADMIN_PASSWORD no arquivo .env}"
+      EJABBERD_API_HOST: "${EJABBERD_API_HOST:-ejabberd}"
+      EJABBERD_API_PORT: "${EJABBERD_API_PORT:-5443}"
+      EJABBERD_TLS_SERVER_NAME: "${EJABBERD_TLS_SERVER_NAME:-localhost}"
+      EJABBERD_CA_FILE: /app/certs/ejabberd.crt
+    ports:
+      - "127.0.0.1:${DJANGO_WEB_PORT:-8000}:8000"
+    volumes:
+      - type: bind
+        source: ./certs/ejabberd.crt
+        target: /app/certs/ejabberd.crt
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  ejabberd:
+    image: ghcr.io/processone/ejabberd:26.09
+    hostname: ejabberd
+    restart: unless-stopped
+    environment:
+      ERLANG_NODE_ARG: ejabberd@ejabberd
+      EJABBERD_MACRO_HOST: "${XMPP_DOMAIN:-localhost}"
+      EJABBERD_MACRO_ADMIN: "${EJABBERD_ADMIN_USER:-admin}@${XMPP_DOMAIN:-localhost}"
+      EJABBERD_MACRO_STARTTLS_REQUIRED: "true"
+      REGISTER_ADMIN_PASSWORD: "${EJABBERD_ADMIN_PASSWORD:?Defina EJABBERD_ADMIN_PASSWORD no arquivo .env}"
+    ports:
+      - "127.0.0.1:${EJABBERD_WEB_PORT:-5280}:5280"
+      - "127.0.0.1:${EJABBERD_HTTPS_PORT:-5443}:5443"
+      - "127.0.0.1:${EJABBERD_XMPP_PORT:-5222}:5222"
+    volumes:
+      - ejabberd_database:/opt/ejabberd/database
+      - ejabberd_logs:/opt/ejabberd/logs
+      - type: bind
+        source: ./ejabberd/ejabberd.yml
+        target: /opt/ejabberd/conf/ejabberd.yml
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "ejabberdctl", "status"]
+      interval: 15s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  ejabberd_database:
+  ejabberd_logs:

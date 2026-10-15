@@ -1,0 +1,132 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Chat · Conversa</title>
+    <link rel="stylesheet" href="{% static 'cadastro/chat.css' %}">
+    {{ chat_config|json_script:"chat-config" }}
+    <script src="{% static 'cadastro/chat.js' %}" defer></script>
+  </head>
+  <body>
+    <div class="workspace">
+      <header class="site-header">
+        <a class="brand" href="{% url 'chat' %}" aria-label="Conversa, chat">
+          <span class="brand-icon" aria-hidden="true"></span>conversa<span class="brand-section">/ chat</span>
+        </a>
+        <a class="account-link" href="{% url 'cadastro' %}">Criar conta <span aria-hidden="true">↗</span></a>
+      </header>
+
+      <main class="chat-shell" id="chat-shell">
+        <aside class="sidebar" aria-label="Conversas">
+          <div class="sidebar-heading">
+            <h2>Mensagens</h2>
+            <button class="icon-button" id="new-conversation" type="button" aria-label="Nova conversa" title="Nova conversa" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <label class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <span class="sr-only">Buscar conversa</span>
+            <input type="search" id="conversation-search" placeholder="Buscar conversa" autocomplete="off" disabled>
+          </label>
+          <div class="conversation-list" id="conversation-list"></div>
+          <div class="sidebar-empty" id="sidebar-empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5A7.5 7.5 0 0 1 9.5 4h3a7.5 7.5 0 0 1 7.5 7.5Z"/></svg>
+            <p id="sidebar-empty-text">Um lugar para suas conversas.</p>
+            <span id="sidebar-empty-help">Entre na sua conta para começar.</span>
+          </div>
+          <div class="identity">
+            <span class="avatar avatar-self" id="self-avatar" aria-hidden="true">C</span>
+            <div class="identity-text">
+              <strong id="self-name">Sua conta</strong>
+              <span class="connection-label" id="connection-label" data-state="offline" role="status">Desconectado</span>
+            </div>
+            <button class="icon-button" id="disconnect" type="button" aria-label="Sair da conta" title="Sair da conta" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v16h5M13 8l4 4-4 4M8 12h13"/></svg>
+            </button>
+          </div>
+        </aside>
+
+        <section class="chat-pane" aria-label="Chat">
+          <header class="thread-header">
+            <button class="icon-button mobile-back" id="back-to-conversations" type="button" aria-label="Voltar às conversas">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            </button>
+            <span class="avatar thread-avatar" id="thread-avatar" aria-hidden="true" hidden></span>
+            <div class="thread-heading">
+              <h2 id="thread-name">Seu espaço de conversa</h2>
+              <p id="thread-detail">Simples. Direto. Do seu jeito.</p>
+            </div>
+            <span class="thread-kind" id="thread-kind" hidden>Conversa direta</span>
+          </header>
+
+          <section class="welcome-panel" id="login-panel" aria-labelledby="login-title">
+            <div class="welcome-content">
+              <span class="welcome-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M25 14.5A8.5 8.5 0 0 1 16.5 23H9l-5 4V14.5A8.5 8.5 0 0 1 12.5 6h4a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M11 13h8M11 17h5"/></svg>
+              </span>
+              <h1 id="login-title">Bom ter você por aqui.</h1>
+              <p class="welcome-description">Entre na sua conta e continue a conversa.</p>
+              <form id="login-form" method="post">
+                {% csrf_token %}
+                <label for="login-user">Usuário</label>
+                <input id="login-user" name="usuario" type="text" placeholder="seu.nome" autocomplete="username"
+                       autocapitalize="none" spellcheck="false" maxlength="254" required aria-describedby="login-domain">
+                <p class="field-help" id="login-domain">Sua conta @{{ xmpp_domain }}</p>
+                <label for="login-password">Senha</label>
+                <div class="password-field">
+                  <input id="login-password" name="senha" type="password" placeholder="Sua senha" autocomplete="current-password" maxlength="128" required>
+                  <button class="password-toggle" id="toggle-password" type="button" aria-controls="login-password" aria-pressed="false">Mostrar</button>
+                </div>
+                <p class="form-error" id="login-error" role="alert" hidden></p>
+                <button class="primary-button login-button" id="login-button" type="submit">Entrar no chat <span aria-hidden="true">→</span></button>
+              </form>
+              <p class="signup-note">Ainda não tem uma conta? <a href="{% url 'cadastro' %}">Criar conta</a></p>
+              <noscript><p class="form-error">Ative o JavaScript para entrar no chat.</p></noscript>
+            </div>
+          </section>
+
+          <section class="welcome-panel" id="empty-panel" aria-labelledby="empty-title" hidden>
+            <div class="welcome-content empty-content">
+              <span class="welcome-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M25 14.5A8.5 8.5 0 0 1 16.5 23H9l-5 4V14.5A8.5 8.5 0 0 1 12.5 6h4a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M11 15h8M15 11v8"/></svg>
+              </span>
+              <h1 id="empty-title">Com quem vamos conversar?</h1>
+              <p class="welcome-description">Escolha uma conta e mande o primeiro olá.</p>
+              <button class="primary-button" id="start-conversation" type="button">Nova conversa <span aria-hidden="true">+</span></button>
+            </div>
+          </section>
+
+          <div class="messages" id="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite" aria-relevant="additions" hidden></div>
+          <p class="chat-notice" id="chat-notice" role="alert" hidden></p>
+          <form class="composer" id="message-form" hidden>
+            <div class="composer-box">
+              <label class="sr-only" for="message-input">Mensagem</label>
+              <textarea id="message-input" name="mensagem" placeholder="Escreva uma mensagem…" rows="1" maxlength="4000" required disabled></textarea>
+              <button class="send-button" id="send-message" type="submit" aria-label="Enviar mensagem" title="Enviar mensagem" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v15"/></svg>
+              </button>
+            </div>
+            <div class="composer-help"><span>Enter para enviar · Shift + Enter para nova linha</span><span>Histórico nesta aba</span></div>
+          </form>
+        </section>
+      </main>
+
+      <footer class="page-footer"><span>Uma conversa começa com uma conexão.</span><span>@{{ xmpp_domain }}</span></footer>
+    </div>
+
+    <dialog id="conversation-dialog" aria-labelledby="dialog-title">
+      <form id="recipient-form">
+        <div class="dialog-heading"><h2 id="dialog-title">Nova conversa</h2><button class="icon-button" id="cancel-conversation" type="button" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+        <p>Para quem você quer mandar uma mensagem?</p>
+        <label for="recipient">Usuário ou endereço da conta</label>
+        <input id="recipient" name="destinatario" type="text" placeholder="nome@{{ xmpp_domain }}" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required aria-describedby="recipient-error">
+        <p class="form-error" id="recipient-error" role="alert" hidden></p>
+        <button class="primary-button" type="submit">Iniciar conversa <span aria-hidden="true">→</span></button>
+      </form>
+    </dialog>
+  </body>
+</html>

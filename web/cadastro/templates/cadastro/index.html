@@ -1,0 +1,68 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Criar conta · Conversa</title>
+    <link rel="stylesheet" href="{% static 'cadastro/style.css' %}">
+    <script src="{% static 'cadastro/app.js' %}" defer></script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="Conversa, página inicial">
+          <span class="brand-icon" aria-hidden="true"></span>conversa
+        </a>
+        <a class="header-note" href="{% url 'chat' %}">Entrar no chat →</a>
+      </header>
+      <main>
+        <section class="registration" aria-labelledby="page-title">
+          <div class="intro">
+            <span class="eyebrow">Uma conta, suas conversas</span>
+            <h1 id="page-title">Vamos conversar?</h1>
+            <p>Crie sua conta e entre pelo seu aplicativo de chat favorito.</p>
+          </div>
+          <form id="account-form" action="{% url 'create-account' %}" method="post" novalidate>
+            {% csrf_token %}
+            <div class="field">
+              <label for="id_usuario">Usuário</label>
+              <input id="id_usuario" name="usuario" type="text" placeholder="seu.nome"
+                     autocomplete="username" autocapitalize="none" spellcheck="false"
+                     minlength="3" maxlength="64" required aria-describedby="username-help usuario-error">
+              <p class="field-help" id="username-help">Seu endereço será <span id="jid-preview" data-domain="{{ xmpp_domain }}">seu.nome@{{ xmpp_domain }}</span></p>
+              <p class="field-error" id="usuario-error" hidden></p>
+            </div>
+            <div class="field">
+              <label for="id_senha">Senha</label>
+              <div class="password-field">
+                <input id="id_senha" name="senha" type="password" placeholder="Escolha uma senha"
+                       autocomplete="new-password" minlength="8" maxlength="128" required
+                       aria-describedby="password-help senha-error">
+                <button id="toggle-password" class="password-toggle" type="button" aria-controls="id_senha" aria-pressed="false">Mostrar</button>
+              </div>
+              <p class="field-help" id="password-help">Use pelo menos 8 caracteres.</p>
+              <p class="field-error" id="senha-error" hidden></p>
+            </div>
+            <p id="form-message" class="form-message" role="alert" hidden></p>
+            <button class="primary-button" id="submit-button" type="submit">Criar minha conta <span aria-hidden="true">→</span></button>
+            <noscript><p class="field-error">Ative o JavaScript para enviar o cadastro por esta página.</p></noscript>
+          </form>
+          <section class="success" id="success-panel" aria-labelledby="success-title" tabindex="-1" hidden>
+            <span class="success-icon" aria-hidden="true">✓</span>
+            <h2 id="success-title">Sua conta está pronta.</h2>
+            <p>Entre no seu aplicativo de chat usando este endereço e a senha que você escolheu.</p>
+            <p class="account-address" id="created-jid"></p>
+            <a class="secondary-button chat-link" href="{% url 'chat' %}">Entrar no chat →</a>
+            <button id="new-account" class="secondary-button" type="button">Criar outra conta</button>
+          </section>
+          <aside class="usage-note">
+            <span class="note-icon" aria-hidden="true">↗</span>
+            <p>Já usa o Pidgin? Escolha o protocolo <strong>XMPP</strong> e entre com sua nova conta.</p>
+          </aside>
+        </section>
+      </main>
+      <footer><span>Uma conversa começa com uma conexão.</span><span>Contas @{{ xmpp_domain }}</span></footer>
+    </div>
+  </body>
+</html>
