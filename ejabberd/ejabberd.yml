@@ -86,7 +86,7 @@ listen:
     module: ejabberd_http
     request_handlers:
       /admin: ejabberd_web_admin
-      # WebSocket sem TLS para o chat do laboratório, publicado só em loopback.
+      # WebSocket sem TLS para o chat do laboratório; o Compose define a interface publicada.
       /websocket: ejabberd_http_ws
       /.well-known/acme-challenge: ejabberd_acme
   -

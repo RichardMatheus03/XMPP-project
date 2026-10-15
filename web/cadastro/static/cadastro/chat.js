@@ -20,7 +20,13 @@
     (node) => node.namespaceURI === namespace && node.localName === name
   );
   const bare = (jid) => jid.split("/")[0].toLowerCase();
-  const uniqueId = (prefix) => prefix + "-" + crypto.randomUUID();
+  // getRandomValues também funciona em HTTP fora de localhost. randomUUID
+  // exige contexto seguro e interromperia o vínculo XMPP no teste pela VPS.
+  const uniqueId = (prefix) => {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return prefix + "-" + token;
+  };
 
   // A WebSocket connection is only the transport. This client negotiates the
   // XMPP stream, SASL authentication and resource binding before allowing sends.
@@ -64,7 +70,9 @@
       }
       this.socket = socket;
       this.handshakeTimer = setTimeout(() => {
-        this.fail("O servidor demorou para responder. Confira se o ejabberd está ativo e tente novamente.");
+        this.fail(socket.readyState === WebSocket.CONNECTING
+          ? "Não foi possível abrir a conexão com o chat. Verifique a porta do WebSocket e o firewall do servidor."
+          : "A conexão foi aberta, mas o login não foi concluído a tempo. Tente novamente.");
       }, 15000);
       socket.addEventListener("open", () => {
         if (socket !== this.socket) return;

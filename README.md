@@ -58,9 +58,11 @@ minha conta**. O endereço completo da conta aparece após a confirmação do
 ejabberd. Por exemplo, o usuário `ana` resulta em `ana@localhost`.
 
 O cadastro é público para quem consegue acessar a página. O Django é publicado
-na porta `80` em todas as interfaces da máquina. As portas do ejabberd continuam
-limitadas à máquina local (`127.0.0.1`). Para acesso ao Django pela VPS, inclua
-seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e libere TCP `80` no firewall.
+na porta `80` em todas as interfaces da máquina. O HTTP do ejabberd é publicado
+na porta `5280` em todas as interfaces para permitir a conexão do navegador na
+VPS. As portas `5443` e `5222` continuam limitadas à máquina local (`127.0.0.1`).
+Para acesso pela VPS, inclua seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e
+libere TCP `80` e `5280` no firewall da máquina e nas regras do provedor.
 
 O formulário aceita nomes de 3 a 64 caracteres, começando com letra ou número,
 e contendo letras, números, ponto, hífen ou sublinhado. Os nomes são convertidos
@@ -84,15 +86,37 @@ Navegador → Django /chat/ → template + JavaScript
 Navegador ⇄ WebSocket :5280/websocket ⇄ ejabberd
 ```
 
-O listener HTTP sem TLS é intencional para este laboratório local, com a porta
-publicada somente em `127.0.0.1`. A conexão HTTPS de cadastro entre Django e
-ejabberd continua usando o certificado existente. Para usar o chat por HTTPS,
+O listener HTTP sem TLS é intencional para este laboratório. A interface
+publicada é configurada por `EJABBERD_WEB_BIND` (padrão `0.0.0.0`). Para um teste
+restrito à própria máquina, use `EJABBERD_WEB_BIND=127.0.0.1`. A porta HTTP também
+disponibiliza a tela de login do painel `/admin/`.
+A conexão HTTPS de cadastro entre Django e ejabberd continua usando o
+certificado existente. Para usar o chat por HTTPS,
 configure `XMPP_WEBSOCKET_URL=wss://seu-servidor/websocket` e um endpoint TLS
 com certificado confiável no navegador.
 
 Sem `XMPP_WEBSOCKET_URL`, o cliente usa o host da página e a porta publicada
 `EJABBERD_WEB_PORT`. O nome Docker `ejabberd` é utilizado apenas no backend.
 Após mudar essa configuração, recrie o serviço web.
+
+Para o teste HTTP acessado de outro computador, a porta publicada pelo ejabberd
+precisa aceitar conexões externas. No `.env` da VPS, por exemplo:
+
+```dotenv
+EJABBERD_WEB_BIND=0.0.0.0
+XMPP_WEBSOCKET_URL=ws://IP_DA_VPS:5280/websocket
+```
+
+Substitua `IP_DA_VPS` pelo endereço real, libere TCP `5280` no firewall da VPS
+e nas regras de entrada do provedor e aplique os arquivos atualizados:
+
+```bash
+docker compose up -d --build --wait
+```
+
+O comando preserva os volumes e as contas. Em `docker compose ps`, o mapeamento
+esperado é `0.0.0.0:5280->5280/tcp`. O cliente gera identificadores com
+`crypto.getRandomValues()`, disponível também no teste HTTP pelo IP público.
 
 A senha é usada durante a autenticação e removida do campo e da memória do
 cliente após o envio SASL. Ela não é salva em cookies, localStorage ou
@@ -136,7 +160,8 @@ XMPP. O cadastro não implementa a ponte MQTT da atividade.
 
 ## Painel administrativo
 
-O Web Admin nativo continua disponível em **http://localhost:5280/admin/**.
+O Web Admin nativo continua disponível em **http://localhost:5280/admin/**
+ou **http://IP_DA_VPS:5280/admin/** quando o HTTP estiver publicado externamente.
 Entre com `admin@localhost` e a senha de `EJABBERD_ADMIN_PASSWORD` no `.env`.
 As contas criadas na aplicação aparecem em **Hosts virtuais → localhost →
 Utilizadores**. Essa página também permite ao administrador criar contas.
@@ -154,6 +179,8 @@ projeto para outra máquina e gere suas próprias senhas e chave Django.
 | `DJANGO_SECRET_KEY` | Chave aleatória exclusiva do Django |
 | `DJANGO_WEB_PORT` | Porta da página na máquina; padrão `80` |
 | `DJANGO_ALLOWED_HOSTS` | Nomes HTTP aceitos pelo Django, separados por vírgulas |
+| `EJABBERD_WEB_BIND` | Interface publicada para HTTP/WebSocket; padrão `0.0.0.0` |
+| `XMPP_WEBSOCKET_URL` | URL pública do WebSocket; vazio usa o host da página e `EJABBERD_WEB_PORT` |
 | `EJABBERD_API_HOST` | Nome de rede do container; padrão `ejabberd` |
 | `EJABBERD_API_PORT` | Porta HTTPS interna; padrão `5443` |
 | `EJABBERD_TLS_SERVER_NAME` | Identidade esperada no certificado; padrão `localhost` |
