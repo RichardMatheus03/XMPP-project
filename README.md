@@ -259,6 +259,3 @@ docker compose exec web python manage.py test cadastro.tests
 - [HTTP Basic Auth no ejabberd](https://docs.ejabberd.im/developer/ejabberd-api/simple-configuration/#basic-authentication)
 - [Certificados e SNI no urllib3](https://urllib3.readthedocs.io/en/stable/advanced-usage.html#custom-sni-hostname)
 - [Proteção CSRF no Django](https://docs.djangoproject.com/en/5.2/howto/csrf/)
-# XMPP-project
-# XMPP-project
-# XMPP-project
