@@ -42,6 +42,7 @@ services:
     restart: unless-stopped
     environment:
       ERLANG_NODE_ARG: ejabberd@ejabberd
+      EJABBERDCTL_CONFIG_PATH: /opt/ejabberd/conf/ejabberdctl-rpc.cfg
       EJABBERD_MACRO_HOST: "${XMPP_DOMAIN:-localhost}"
       EJABBERD_MACRO_ADMIN: "${EJABBERD_ADMIN_USER:-admin}@${XMPP_DOMAIN:-localhost}"
       EJABBERD_MACRO_STARTTLS_REQUIRED: "true"
@@ -56,6 +57,12 @@ services:
       - type: bind
         source: ./ejabberd/ejabberd.yml
         target: /opt/ejabberd/conf/ejabberd.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./ejabberd/ejabberdctl-rpc.cfg
+        target: /opt/ejabberd/conf/ejabberdctl-rpc.cfg
         read_only: true
         bind:
           create_host_path: false

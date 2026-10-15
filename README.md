@@ -25,6 +25,24 @@ que permite executar apenas `register` com autenticação de uma conta da ACL
 `admin`. A regra HTTP original exige administrador **e** origem loopback;
 outro container Docker não atende à condição de loopback.
 
+O listener Unix de administração `/ctl` foi omitido para contornar um bug do
+ejabberd 26.09: o nome temporário do socket usa Base64 e pode conter barras,
+causando `enoent` em `set_definitive_udsocket` ao iniciar em um ambiente novo.
+O arquivo `ejabberd/ejabberdctl-rpc.cfg` preserva as opções originais da imagem
+e desativa `CTL_OVER_HTTP`, fazendo `ejabberdctl` usar RPC Erlang local mesmo
+quando o volume da imagem contém um socket antigo. O healthcheck e a criação
+da conta administrativa continuam disponíveis.
+
+Se uma instalação anterior falhar com esse erro, atualize `compose.yaml`,
+`ejabberd/ejabberd.yml` e `ejabberd/ejabberdctl-rpc.cfg` e recrie os serviços:
+
+```bash
+docker compose up -d --force-recreate --wait ejabberd
+docker compose up -d --build --wait web
+```
+
+As contas permanecem nos volumes Docker durante essa recriação.
+
 ## Iniciar
 
 É necessário ter Docker e Docker Compose disponíveis. Nesta máquina, o `.env`
