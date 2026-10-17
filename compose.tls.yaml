@@ -1,0 +1,21 @@
+# Ative com COMPOSE_FILE=compose.yaml:compose.tls.yaml no .env da VPS.
+services:
+  web:
+    environment:
+      XMPP_WEBSOCKET_URL: "wss://${TLS_PUBLIC_IP:?Defina TLS_PUBLIC_IP no .env}/websocket"
+      EJABBERD_TLS_SERVER_NAME: "${TLS_PUBLIC_IP:?Defina TLS_PUBLIC_IP no .env}"
+      # Confia na CA pública, permitindo renovar o certificado sem fixar o leaf.
+      EJABBERD_CA_FILE: /etc/ssl/certs/ca-certificates.crt
+
+  ejabberd:
+    environment:
+      EJABBERD_MACRO_TLS_CERTIFICATE: /opt/ejabberd/tls/server.pem
+    ports:
+      - "0.0.0.0:443:5444"
+    volumes:
+      - type: bind
+        source: /opt/ejabberd-tls
+        target: /opt/ejabberd/tls
+        read_only: true
+        bind:
+          create_host_path: false

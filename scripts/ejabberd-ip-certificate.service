@@ -1,0 +1,12 @@
+[Unit]
+Description=Renova o certificado de IP do ejabberd por TLS-ALPN-01
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ejabberd-acme.env
+ExecStart=/usr/bin/python3 /usr/local/lib/ejabberd/renew_ip_certificate.py
+TimeoutStartSec=480
+UMask=0077

@@ -5,7 +5,10 @@ Atualizado em 16/10/2026. Escopo esclarecido pelo usuário: proteger somente a
 conexão WebSocket entre o cliente JavaScript no navegador e o servidor XMPP.
 A proposta anterior de Nginx e HTTPS para a aplicação Django foi substituída
 pelo cenário abaixo. Não há necessidade de proxy reverso para este objetivo.
-Nenhuma configuração de execução foi alterada e nenhum teste foi executado.
+O estudo foi implementado na VPS em 17/10/2026 usando lego e TLS-ALPN-01.
+Os detalhes operacionais estão no README, na seção de WSS com certificado
+público de IP. O conteúdo abaixo registra o estudo original; o README descreve
+o deploy atual.
 
 1. **Arquitetura**
 

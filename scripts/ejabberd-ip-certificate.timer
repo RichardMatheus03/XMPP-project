@@ -1,0 +1,11 @@
+[Unit]
+Description=Verifica duas vezes ao dia o certificado de IP do ejabberd
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=ejabberd-ip-certificate.service
+
+[Install]
+WantedBy=timers.target

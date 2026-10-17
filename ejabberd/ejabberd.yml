@@ -22,6 +22,7 @@ define_macro:
   PORT_C2S_TLS: 5223
   PORT_S2S: 5269
   PORT_HTTP_TLS: 5443
+  PORT_WEBSOCKET_TLS: 5444
   PORT_HTTP: 5280
   PORT_BROWSER: 1880
   PORT_STUN: 5478
@@ -30,6 +31,7 @@ define_macro:
   PORT_MQTT: 1883
   PORT_PROXY65: 7777
   STARTTLS_REQUIRED: true
+  TLS_CERTIFICATE: /opt/ejabberd/conf/server.pem
 
 hosts:
   - HOST
@@ -43,7 +45,7 @@ loglevel: info
 
 ca_file: /opt/ejabberd/conf/cacert.pem
 certfiles:
-  - /opt/ejabberd/conf/server.pem
+  - TLS_CERTIFICATE
 
 listen:
   - port: PORT_C2S
@@ -75,6 +77,13 @@ listen:
       /bosh: mod_bosh
       /captcha: ejabberd_captcha
       /upload: mod_http_upload
+      /websocket: ejabberd_http_ws
+  # WSS público dedicado; a API administrativa continua no listener 5443.
+  - port: PORT_WEBSOCKET_TLS
+    ip: "::"
+    module: ejabberd_http
+    tls: true
+    request_handlers:
       /websocket: ejabberd_http_ws
   - port: PORT_HTTP
     ip: "::"

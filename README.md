@@ -64,7 +64,7 @@ A porta `5222` é publicada em todas as interfaces para clientes XMPP externos.
 A porta `5443` continua limitada à máquina local (`127.0.0.1`).
 Para acesso pela VPS, inclua seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e
 libere TCP `80` para a página. O chat exige um endpoint WSS configurado conforme
-a seção abaixo; o Compose atual ainda não publica esse endpoint com certificado
+a seção abaixo; o Compose básico ainda não publica esse endpoint com certificado
 válido para o IP público.
 
 O formulário aceita nomes de 3 a 64 caracteres, começando com letra ou número,
@@ -111,7 +111,7 @@ XMPP_WEBSOCKET_URL=wss://IP_DA_VPS:5443/websocket
 
 Esse exemplo exige que o ejabberd ofereça TLS na porta pública `5443`, com um
 certificado confiável no navegador e válido para `IP_DA_VPS`. A configuração
-atual ainda restringe essa porta a `127.0.0.1` e usa certificado de `localhost`;
+do Compose básico restringe essa porta a `127.0.0.1` e usa certificado de `localhost`;
 preparar o cliente não publica a porta nem instala o certificado na VPS.
 Um listener TLS dedicado pode publicar somente `/websocket`. O TLS pode terminar
 diretamente no ejabberd, sem proxy reverso ou HTTPS na página Django.
@@ -153,6 +153,90 @@ e entre com uma conta em cada uma. Inicie uma conversa pelo JID da outra,
 envie mensagens nos dois sentidos e confira o conteúdo recebido. Confira
 também senha incorreta e **Sair da conta**. Não é necessário executar uma
 suíte de testes para esse roteiro.
+
+## WSS com certificado público de IP na VPS
+
+A configuração `compose.tls.yaml` publica **443 → 5444**, com TLS terminado no
+próprio ejabberd. O listener 5444 atende somente `/websocket`. A API e o painel
+do listener 5443 continuam acessíveis pelo loopback do host. A publicação
+existente da porta XMPP 5222 é preservada.
+
+Na VPS `20.87.218.69`, o projeto fica em `/home/richard/XMPP-project`. O
+certificado foi emitido pelo Let's Encrypt usando **lego 5.5.2** e o desafio
+**TLS-ALPN-01**, sem proxy reverso. A porta 443 precisa aceitar conexões externas
+também durante as renovações. O binário foi obtido da release oficial e teve seu
+SHA256 conferido com o arquivo de checksums da release.
+
+No `.env` da VPS, o modo TLS é ativado com:
+
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.tls.yaml
+TLS_PUBLIC_IP=20.87.218.69
+XMPP_WEBSOCKET_URL=wss://20.87.218.69/websocket
+```
+
+O overlay usa `/opt/ejabberd-tls/server.pem`, montando o diretório inteiro somente
+para leitura no container. O arquivo reúne a cadeia pública e a chave privada,
+com proprietário `root`, grupo `9000`, permissão `0640` e diretório `0750`.
+As chaves ficam exclusivamente na VPS, fora do repositório.
+
+O backend Django passa a validar a identidade TLS do IP pela lista de CAs do
+sistema (`/etc/ssl/certs/ca-certificates.crt`). Isso permite a renovação sem
+atualizar uma cópia fixada do certificado público no container web. O destino
+de rede da API continua sendo `ejabberd:5443` e as contas continuam em `@tiot`.
+
+Para reproduzir a emissão inicial, com a porta 443 livre e lego instalado:
+
+```bash
+sudo lego run --path /var/lib/ejabberd-acme \
+  --email SEU_EMAIL --accept-tos --domains 20.87.218.69 \
+  --profile shortlived --tls --cert.timeout 120
+sudo env INSTALL_CERTIFICATE_ONLY=1 TLS_PUBLIC_IP=20.87.218.69 \
+  EJABBERD_PROJECT_DIR="$PWD" python3 scripts/renew_ip_certificate.py
+docker compose up -d --wait --wait-timeout 120
+```
+
+A primeira emissão requer que a porta 443 esteja livre. As emissões seguintes
+são feitas pelo timer `ejabberd-ip-certificate.timer`, instalado com as unidades
+disponíveis em `scripts/`. Sua configuração fica em `/etc/ejabberd-acme.env`,
+com permissão `0600` e proprietário root:
+
+```dotenv
+TLS_PUBLIC_IP=20.87.218.69
+ACME_EMAIL=SEU_EMAIL
+EJABBERD_PROJECT_DIR=/home/richard/XMPP-project
+ACME_DIR=/var/lib/ejabberd-acme
+TLS_DIR=/opt/ejabberd-tls
+```
+
+O script é instalado em `/usr/local/lib/ejabberd/renew_ip_certificate.py` e as
+unidades em `/etc/systemd/system/`. O timer é habilitado com
+`sudo systemctl enable --now ejabberd-ip-certificate.timer` após
+`sudo systemctl daemon-reload`.
+
+Os certificados de IP têm validade curta, de aproximadamente seis dias. O timer
+confere duas vezes ao dia, com atraso aleatório de até 30 minutos. Com mais de
+72 horas de validade restante, não modifica o serviço. Quando precisa renovar,
+para brevemente o ejabberd para liberar 443, emite o certificado, valida IP,
+cadeia e chave, instala o PEM atomicamente e restaura o serviço. Isso encerra as
+sessões XMPP; os usuários precisam reconectar. Uma falha na emissão preserva o
+PEM instalado e o serviço é restaurado pelo bloco `finally`.
+
+Para acompanhar a operação:
+
+```bash
+sudo systemctl list-timers ejabberd-ip-certificate.timer
+sudo journalctl -u ejabberd-ip-certificate.service
+```
+
+A configuração anterior da VPS foi preservada em
+`/var/backups/ejabberd-wss-20261017/`. Para novos ajustes, preserve as chaves e o
+estado ACME em `/var/lib/ejabberd-acme/`. A configuração básica continua usando
+o certificado da imagem quando o overlay TLS não está ativado.
+
+Referências: [TLS-ALPN no lego](https://go-acme.github.io/lego/obtain/tlsalpn01/),
+[certificados de IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
+e [certfiles no ejabberd](https://docs.ejabberd.im/archive/26.09/toplevel/#certfiles).
 
 ## Usar as contas em outros clientes
 
@@ -216,6 +300,10 @@ senha no `.env` não troca a senha de uma conta já existente: nesse caso, alter
 a conta no ejabberd e mantenha a credencial do backend correspondente.
 
 ## Certificado HTTPS entre os containers
+
+Esta seção descreve o Compose básico. Com `compose.tls.yaml`, o backend confia
+nas CAs públicas do sistema e usa a identidade do IP; a exportação abaixo não
+é necessária para renovar o certificado da VPS.
 
 `certs/ejabberd.crt` contém apenas o certificado público extraído do ejabberd
 usado neste ambiente. Ele é montado no serviço `web` como arquivo somente de
