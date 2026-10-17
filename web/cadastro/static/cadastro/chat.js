@@ -2,39 +2,25 @@
 
 (() => {
   const NS = {
-    framing: "urn:ietf:params:xml:ns:xmpp-framing",
-    streams: "http://etherx.jabber.org/streams",
-    sasl: "urn:ietf:params:xml:ns:xmpp-sasl",
-    bind: "urn:ietf:params:xml:ns:xmpp-bind",
-    session: "urn:ietf:params:xml:ns:xmpp-session",
     client: "jabber:client",
     receipts: "urn:xmpp:receipts",
     ping: "urn:xmpp:ping",
     disco: "http://jabber.org/protocol/disco#info",
     delay: "urn:xmpp:delay",
   };
-  const escapeXml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;",
-  })[char]);
-  const child = (element, namespace, name) => Array.from(element.children).find(
-    (node) => node.namespaceURI === namespace && node.localName === name
-  );
+  const child = (element, namespace, name) =>
+    Array.from(element.children).find(
+      (node) => node.namespaceURI === namespace && node.localName === name,
+    );
   const bare = (jid) => jid.split("/")[0].toLowerCase();
-  // getRandomValues também funciona em HTTP fora de localhost. randomUUID
-  // exige contexto seguro e interromperia o vínculo XMPP no teste pela VPS.
-  const uniqueId = (prefix) => {
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    const token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return prefix + "-" + token;
-  };
 
-  // A WebSocket connection is only the transport. This client negotiates the
-  // XMPP stream, SASL authentication and resource binding before allowing sends.
+  // Strophe cuida do WebSocket, XML, SASL e vínculo da sessão XMPP.
+  // Este adaptador traduz seus eventos para a interface e trata as extensões do chat.
   class XmppClient extends EventTarget {
     constructor() {
       super();
       this.state = "offline";
-      this.socket = null;
+      this.connection = null;
       this.seen = new Set();
     }
 
@@ -49,240 +35,170 @@
 
     connect(url, username, password, domain) {
       this.disconnect();
-      this.username = username;
-      this.domain = domain;
       this.jid = "";
-      this.password = password;
-      this.stage = "features";
       this.seen.clear();
-      this.setState("connecting");
-      let socket;
+      if (!window.Strophe) {
+        this.fail("Não foi possível carregar a biblioteca do chat. Recarregue a página e tente novamente.");
+        return;
+      }
+      let endpoint;
       try {
-        const endpoint = new URL(url);
+        endpoint = new URL(url);
         if (!["ws:", "wss:"].includes(endpoint.protocol)) throw new Error();
         if (location.protocol === "https:" && endpoint.protocol !== "wss:") {
           throw new Error("Esta página HTTPS precisa de uma conexão wss://. Ajuste XMPP_WEBSOCKET_URL.");
         }
-        socket = new WebSocket(endpoint.href, "xmpp");
       } catch (error) {
         this.fail(error.message.includes("HTTPS") ? error.message : "O endereço de conexão com o chat é inválido.");
         return;
       }
-      this.socket = socket;
-      this.handshakeTimer = setTimeout(() => {
-        this.fail(socket.readyState === WebSocket.CONNECTING
-          ? "Não foi possível abrir a conexão com o chat. Verifique a porta do WebSocket e o firewall do servidor."
-          : "A conexão foi aberta, mas o login não foi concluído a tempo. Tente novamente.");
-      }, 15000);
-      socket.addEventListener("open", () => {
-        if (socket !== this.socket) return;
-        if (socket.protocol !== "xmpp") {
-          this.fail("O servidor não aceitou o protocolo XMPP.");
-          return;
-        }
-        this.openStream();
-      });
-      socket.addEventListener("message", (event) => {
-        if (socket !== this.socket) return;
-        try {
-          this.receive(event.data);
-        } catch {
-          this.fail("O servidor enviou uma resposta que não pôde ser processada.");
-        }
-      });
-      socket.addEventListener("error", () => {
-        if (socket !== this.socket) return;
+      this.setState("connecting");
+      try {
+        const connection = new Strophe.Connection(endpoint.href);
+        this.connection = connection;
+        this.handshakeTimer = setTimeout(() => {
+          if (connection === this.connection) {
+            this.fail("Não foi possível concluir a conexão com o chat. Verifique o endereço, a porta do WebSocket e o firewall do servidor.");
+          }
+        }, 15000);
+        connection.connect(
+          username + "@" + domain + "/" + connection.getUniqueId("navegador"),
+          password,
+          (status) => this.onStatus(connection, status),
+        );
+      } catch {
         this.fail("Não foi possível conectar ao chat. Verifique o ejabberd e a porta do WebSocket.");
-      });
-      socket.addEventListener("close", () => {
-        if (socket !== this.socket) return;
-        this.socket = null;
-        this.clearTimers();
-        this.password = "";
-        this.setState("offline", "A conexão foi encerrada. Entre novamente para continuar.");
-      });
+      }
     }
 
-    clearTimers() {
+    onStatus(connection, status) {
+      // Eventos de uma tentativa anterior não devem alterar a conexão atual.
+      if (connection !== this.connection) return;
+      switch (status) {
+        case Strophe.Status.AUTHENTICATING:
+          this.setState("authenticating");
+          break;
+        case Strophe.Status.CONNECTED:
+          clearTimeout(this.handshakeTimer);
+          connection.pass = "";
+          this.jid = connection.jid;
+          connection.addHandler((stanza) => {
+            if (connection !== this.connection) return false;
+            this.receiveMessage(stanza);
+            return true;
+          }, null, "message");
+          connection.addHandler((stanza) => {
+            if (connection !== this.connection) return false;
+            this.receiveIq(stanza);
+            return true;
+          }, null, "iq", ["get", "set"]);
+          connection.addTimedHandler(30000, () => {
+            if (connection !== this.connection) return false;
+            try {
+              connection.sendIQ(
+                $iq({ type: "get", to: connection.domain }).c("ping", { xmlns: NS.ping }),
+                null,
+                (stanza) => {
+                  // Uma resposta de erro também indica que o servidor está respondendo.
+                  if (!stanza && connection === this.connection) {
+                    this.fail("O servidor parou de responder. Entre novamente para reconectar.");
+                  }
+                },
+                15000,
+              );
+              return true;
+            } catch {
+              this.fail("A conexão foi interrompida. Entre novamente.");
+              return false;
+            }
+          });
+          connection.send($pres());
+          this.setState("online");
+          break;
+        case Strophe.Status.AUTHFAIL:
+          this.fail("Não foi possível autenticar sua conta. Confira o usuário e a senha e tente novamente.");
+          break;
+        case Strophe.Status.ERROR:
+        case Strophe.Status.CONNFAIL:
+        case Strophe.Status.CONNTIMEOUT:
+          this.fail("Não foi possível conectar ao chat. Verifique o domínio, o ejabberd e a porta do WebSocket.");
+          break;
+        case Strophe.Status.DISCONNECTED:
+          clearTimeout(this.handshakeTimer);
+          connection.pass = "";
+          this.connection = null;
+          this.setState("offline", "A conexão foi encerrada. Entre novamente para continuar.");
+          break;
+      }
+    }
+
+    closeConnection() {
+      const connection = this.connection;
+      this.connection = null;
       clearTimeout(this.handshakeTimer);
-      clearTimeout(this.pingTimer);
-      clearInterval(this.keepaliveTimer);
-      this.pendingPing = "";
+      if (connection) {
+        connection.pass = "";
+        connection.disconnect();
+      }
     }
 
     fail(message) {
-      const socket = this.socket;
-      this.socket = null;
-      this.password = "";
-      this.clearTimers();
-      if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
+      this.closeConnection();
       this.setState("error", message);
     }
 
     disconnect() {
-      const socket = this.socket;
-      if (socket?.readyState === WebSocket.OPEN) {
-        if (this.state === "online") socket.send('<presence xmlns="jabber:client" type="unavailable"/>');
-        socket.send('<close xmlns="' + NS.framing + '"/>');
-      }
-      this.socket = null;
-      this.password = "";
-      this.clearTimers();
-      if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
+      this.closeConnection();
       this.setState("offline");
     }
 
-    send(xml) {
-      if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("A conexão com o chat foi interrompida.");
-      this.socket.send(xml);
-    }
-
-    openStream() {
-      this.send('<open xmlns="' + NS.framing + '" to="' + escapeXml(this.domain) + '" version="1.0"/>');
-    }
-
-    receive(data) {
-      if (typeof data !== "string") throw new Error("Expected XML text");
-      const document = new DOMParser().parseFromString(data, "application/xml");
-      if (document.getElementsByTagName("parsererror").length) throw new Error("Invalid XML");
-      const root = document.documentElement;
-      const name = root.localName;
-      const namespace = root.namespaceURI;
-
-      if (namespace === NS.framing) {
-        if (name === "close") this.fail("O servidor encerrou a sessão. Entre novamente.");
+    receiveIq(stanza) {
+      const response = $iq({
+        type: "result",
+        id: stanza.getAttribute("id"),
+        ...(stanza.getAttribute("from") ? { to: stanza.getAttribute("from") } : {}),
+      });
+      if (stanza.getAttribute("type") === "get" && child(stanza, NS.ping, "ping")) {
+        this.connection.send(response);
         return;
       }
-      if (namespace === NS.streams && name === "error") {
-        this.fail("O servidor recusou a sessão. Confira o domínio e a configuração do ejabberd.");
-        return;
-      }
-      if (namespace === NS.streams && name === "features") {
-        if (this.stage === "features") {
-          const mechanisms = Array.from(root.getElementsByTagNameNS(NS.sasl, "mechanism"));
-          if (!mechanisms.some((item) => item.textContent.trim() === "PLAIN")) {
-            this.fail("O servidor não oferece o mecanismo de autenticação usado por este cliente (SASL PLAIN).");
-            return;
-          }
-          this.stage = "auth";
-          this.setState("authenticating");
-          const bytes = new TextEncoder().encode("\0" + this.username + "\0" + this.password);
-          const credentials = btoa(String.fromCharCode(...bytes));
-          this.password = "";
-          this.send('<auth xmlns="' + NS.sasl + '" mechanism="PLAIN">' + credentials + '</auth>');
-        } else if (this.stage === "restart") {
-          if (!child(root, NS.bind, "bind")) {
-            this.fail("O servidor não anunciou o vínculo de recurso XMPP.");
-            return;
-          }
-          const session = child(root, NS.session, "session");
-          this.needsSession = Boolean(session && !child(session, NS.session, "optional"));
-          this.stage = "bind";
-          this.bindId = uniqueId("bind");
-          this.send('<iq xmlns="jabber:client" type="set" id="' + this.bindId + '"><bind xmlns="' +
-            NS.bind + '"><resource>' + uniqueId("navegador") + '</resource></bind></iq>');
+      const query = child(stanza, NS.disco, "query");
+      if (stanza.getAttribute("type") === "get" && query) {
+        response.c("query", {
+          xmlns: NS.disco,
+          ...(query.hasAttribute("node") ? { node: query.getAttribute("node") } : {}),
+        }).c("identity", { category: "client", type: "web", name: "Conversa" }).up();
+        for (const namespace of [NS.disco, NS.ping, NS.receipts]) {
+          response.c("feature", { var: namespace }).up();
         }
-        return;
-      }
-      if (namespace === NS.sasl) {
-        if (name === "success" && this.stage === "auth") {
-          this.stage = "restart";
-          this.openStream();
-        } else if (name === "failure") {
-          this.fail(child(root, NS.sasl, "not-authorized") ?
-            "Usuário ou senha incorretos. Confira seus dados e tente novamente." :
-            "Não foi possível autenticar sua conta no servidor.");
-        }
-        return;
-      }
-      if (namespace !== NS.client) return;
-      if (name === "iq") this.receiveIq(root);
-      if (name === "message" && this.state === "online") this.receiveMessage(root);
-    }
-
-    receiveIq(root) {
-      const id = root.getAttribute("id") || "";
-      const type = root.getAttribute("type");
-      const from = root.getAttribute("from") || "";
-      if (id === this.bindId && this.stage === "bind") {
-        const binding = child(root, NS.bind, "bind");
-        const jid = binding && child(binding, NS.bind, "jid");
-        if (type !== "result" || !jid?.textContent) {
-          this.fail("O servidor não conseguiu iniciar a sessão da conta.");
-          return;
-        }
-        this.jid = jid.textContent;
-        if (this.needsSession) {
-          this.stage = "session";
-          this.sessionId = uniqueId("session");
-          this.send('<iq xmlns="jabber:client" type="set" id="' + this.sessionId +
-            '"><session xmlns="' + NS.session + '"/></iq>');
-        } else this.connected();
-        return;
-      }
-      if (id === this.sessionId && this.stage === "session") {
-        if (type === "result") this.connected();
-        else this.fail("O servidor recusou o início da sessão.");
-        return;
-      }
-      if (id === this.pendingPing && ["result", "error"].includes(type)) {
-        clearTimeout(this.pingTimer);
-        this.pendingPing = "";
-        return;
-      }
-      if (this.state !== "online" || !["get", "set"].includes(type)) return;
-      const address = from ? ' to="' + escapeXml(from) + '"' : "";
-      const attributes = ' xmlns="jabber:client" id="' + escapeXml(id) + '"' + address;
-      if (type === "get" && child(root, NS.ping, "ping")) {
-        this.send('<iq type="result"' + attributes + '/>');
-      } else if (type === "get" && child(root, NS.disco, "query")) {
-        const query = child(root, NS.disco, "query");
-        const node = query.getAttribute("node");
-        this.send('<iq type="result"' + attributes + '><query xmlns="' + NS.disco + '"' +
-          (node ? ' node="' + escapeXml(node) + '"' : "") +
-          '><identity category="client" type="web" name="Conversa"/><feature var="' +
-          NS.disco + '"/><feature var="' + NS.ping + '"/><feature var="' + NS.receipts + '"/></query></iq>');
       } else {
-        this.send('<iq type="error"' + attributes + '><error type="cancel">' +
-          '<service-unavailable xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/></error></iq>');
+        response.attrs({ type: "error" })
+          .c("error", { type: "cancel" })
+          .c("service-unavailable", { xmlns: Strophe.NS.STANZAS });
       }
+      this.connection.send(response);
     }
 
-    connected() {
-      this.stage = "online";
-      clearTimeout(this.handshakeTimer);
-      this.send('<presence xmlns="jabber:client"/>');
-      this.setState("online");
-      this.keepaliveTimer = setInterval(() => {
-        if (this.pendingPing || this.state !== "online") return;
-        try {
-          this.pendingPing = uniqueId("ping");
-          this.send('<iq xmlns="jabber:client" type="get" to="' + escapeXml(this.domain) +
-            '" id="' + this.pendingPing + '"><ping xmlns="' + NS.ping + '"/></iq>');
-          this.pingTimer = setTimeout(() => this.fail("O servidor parou de responder. Entre novamente para reconectar."), 15000);
-        } catch {
-          this.fail("A conexão foi interrompida. Entre novamente.");
-        }
-      }, 30000);
-    }
-
-    receiveMessage(root) {
-      const from = root.getAttribute("from") || "";
-      const id = root.getAttribute("id") || "";
-      const type = root.getAttribute("type") || "normal";
+    receiveMessage(stanza) {
+      const from = stanza.getAttribute("from") || "";
+      const id = stanza.getAttribute("id") || "";
+      const type = stanza.getAttribute("type") || "normal";
       if (!from) return;
       if (type === "error") {
         this.emit("send-error", { from: bare(from), id });
         return;
       }
       if (!["chat", "normal"].includes(type)) return;
-      const receipt = child(root, NS.receipts, "received");
-      if (receipt) this.emit("receipt", { from: bare(from), id: receipt.getAttribute("id") });
-      const body = child(root, NS.client, "body");
-      if (!body || !body.textContent) return;
-      if (id && child(root, NS.receipts, "request")) {
-        this.send('<message xmlns="jabber:client" type="chat" to="' + escapeXml(from) +
-          '"><received xmlns="' + NS.receipts + '" id="' + escapeXml(id) + '"/></message>');
+      const receipt = child(stanza, NS.receipts, "received");
+      if (receipt) {
+        this.emit("receipt", { from: bare(from), id: receipt.getAttribute("id") });
+      }
+      const body = child(stanza, NS.client, "body");
+      if (!body?.textContent) return;
+      if (id && child(stanza, NS.receipts, "request")) {
+        this.connection.send(
+          $msg({ type: "chat", to: from }).c("received", { xmlns: NS.receipts, id }),
+        );
       }
       const key = from + "\0" + id;
       if (id && this.seen.has(key)) return;
@@ -290,17 +206,25 @@
         this.seen.add(key);
         if (this.seen.size > 2000) this.seen.delete(this.seen.values().next().value);
       }
-      const stamp = child(root, NS.delay, "delay")?.getAttribute("stamp");
+      const stamp = child(stanza, NS.delay, "delay")?.getAttribute("stamp");
       const date = stamp ? new Date(stamp) : new Date();
-      this.emit("message", { from: bare(from), body: body.textContent, id,
-        date: Number.isNaN(date.getTime()) ? new Date() : date });
+      this.emit("message", {
+        from: bare(from),
+        body: body.textContent,
+        id,
+        date: Number.isNaN(date.getTime()) ? new Date() : date,
+      });
     }
 
     sendMessage(to, body) {
-      if (this.state !== "online") throw new Error("Entre na sua conta antes de enviar mensagens.");
-      const id = uniqueId("message");
-      this.send('<message xmlns="jabber:client" type="chat" to="' + escapeXml(to) + '" id="' + id +
-        '"><body>' + escapeXml(body) + '</body><request xmlns="' + NS.receipts + '"/></message>');
+      if (this.state !== "online" || !this.connection?.authenticated) {
+        throw new Error("Entre na sua conta antes de enviar mensagens.");
+      }
+      const id = this.connection.getUniqueId("message");
+      this.connection.send(
+        $msg({ type: "chat", to, id }).c("body").t(body).up()
+          .c("request", { xmlns: NS.receipts }),
+      );
       return id;
     }
   }

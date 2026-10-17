@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
     <title>Chat · Conversa</title>
+    <script src="https://cdn.jsdelivr.net/npm/strophe.js@5.0.0/dist/strophe.umd.min.js"
+            integrity="sha384-8CLeA0I7wfZOfm0oqjJR3bOLXe/Fhh2KFaprDnyBbu04AqYpjP8T80PHr6bN+m/5"
+            crossorigin="anonymous" defer></script>
     <link rel="stylesheet" href="{% static 'cadastro/chat.css' %}">
     {{ chat_config|json_script:"chat-config" }}
     <script src="{% static 'cadastro/chat.js' %}" defer></script>

@@ -76,10 +76,14 @@ Entre com o usuário ou JID completo, como `ana@localhost`, e a senha escolhida
 no cadastro. Use **+ / Nova conversa** para informar outra conta e conversar.
 Enter envia; Shift + Enter insere uma linha. A busca filtra as conversas abertas.
 
-O Django entrega o template e a configuração pública. O JavaScript nativo
-conecta diretamente a `ws://localhost:5280/websocket`, negocia o fluxo XMPP,
-autentica com SASL PLAIN, vincula um recurso e envia presença. Nenhuma credencial
-administrativa é enviada ao navegador e não há dependências JavaScript externas.
+O Django entrega o template e a configuração pública. O navegador usa
+[Strophe.js 5.0.0](https://github.com/strophe/strophejs), carregado pelo CDN
+jsDelivr no `<head>` antes de `chat.js`, com versão fixa e verificação de
+integridade (SRI). A biblioteca gerencia o WebSocket, o fluxo XML, a autenticação
+SASL e o vínculo da sessão XMPP em `ws://localhost:5280/websocket`. O adaptador
+em `chat.js` integra seus eventos à interface e trata presença, ping e
+confirmações de entrega. Nenhuma credencial administrativa é enviada ao navegador.
+É necessário acesso ao CDN para carregar a biblioteca.
 
 ```text
 Navegador → Django /chat/ → template + JavaScript
@@ -115,12 +119,14 @@ docker compose up -d --build --wait
 ```
 
 O comando preserva os volumes e as contas. Em `docker compose ps`, o mapeamento
-esperado é `0.0.0.0:5280->5280/tcp`. O cliente gera identificadores com
-`crypto.getRandomValues()`, disponível também no teste HTTP pelo IP público.
+esperado é `0.0.0.0:5280->5280/tcp`. O Strophe gera os identificadores das
+mensagens e do recurso, inclusive no acesso HTTP pelo IP público. Ele negocia
+um mecanismo SASL compatível com o servidor e o navegador; SCRAM depende de
+WebCrypto em contexto seguro, e PLAIN continua disponível no laboratório HTTP.
 
 A senha é usada durante a autenticação e removida do campo e da memória do
-cliente após o envio SASL. Ela não é salva em cookies, localStorage ou
-sessionStorage. Conversas, mensagens e rascunhos ficam somente em um `Map`
+cliente após a autenticação ou o encerramento da conexão. Ela não é salva em
+cookies, localStorage ou sessionStorage. Conversas, mensagens e rascunhos ficam somente em um `Map`
 na memória do JavaScript da aba e são limpos ao sair, recarregar ou fechar a
 página. Não há banco de dados de mensagens no Django nem recuperação de histórico.
 
