@@ -11,6 +11,7 @@
             crossorigin="anonymous" defer></script>
     <link rel="stylesheet" href="{% static 'cadastro/chat.css' %}">
     {{ chat_config|json_script:"chat-config" }}
+    <script src="{% static 'cadastro/xmpp-client.js' %}" defer></script>
     <script src="{% static 'cadastro/chat.js' %}" defer></script>
   </head>
   <body>

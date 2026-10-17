@@ -81,8 +81,11 @@ O Django entrega o template e a configuração pública. O navegador usa
 jsDelivr no `<head>` antes de `chat.js`, com versão fixa e verificação de
 integridade (SRI). A biblioteca gerencia o WebSocket, o fluxo XML, a autenticação
 SASL e o vínculo da sessão XMPP em `ws://localhost:5280/websocket`. O adaptador
-em `chat.js` integra seus eventos à interface e trata presença, ping e
-confirmações de entrega. Nenhuma credencial administrativa é enviada ao navegador.
+em `xmpp-client.js` trata conexão, presença, ping, confirmações de entrega e
+endereços JID, expondo a classe `XmppClient` e seus eventos. O arquivo `chat.js`
+cuida dos formulários, das conversas e da renderização da página. O HTML carrega
+os scripts na ordem Strophe, `xmpp-client.js` e `chat.js`, todos com `defer`.
+Nenhuma credencial administrativa é enviada ao navegador.
 É necessário acesso ao CDN para carregar a biblioteca.
 
 ```text
