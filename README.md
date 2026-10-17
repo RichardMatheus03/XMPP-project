@@ -60,7 +60,8 @@ ejabberd. Por exemplo, o usuário `ana` resulta em `ana@localhost`.
 O cadastro é público para quem consegue acessar a página. O Django é publicado
 na porta `80` em todas as interfaces da máquina. O HTTP do ejabberd é publicado
 na porta `5280` em todas as interfaces para o painel administrativo.
-As portas `5443` e `5222` continuam limitadas à máquina local (`127.0.0.1`).
+A porta `5222` é publicada em todas as interfaces para clientes XMPP externos.
+A porta `5443` continua limitada à máquina local (`127.0.0.1`).
 Para acesso pela VPS, inclua seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e
 libere TCP `80` para a página. O chat exige um endpoint WSS configurado conforme
 a seção abaixo; o Compose atual ainda não publica esse endpoint com certificado
@@ -166,7 +167,10 @@ No Pidgin, selecione XMPP e use:
 | Porta | `5222` |
 
 O Compose exige STARTTLS nas conexões XMPP. Configure a confiança no certificado
-do servidor também no cliente de chat. O cliente Python utiliza a mesma conta
+do servidor também no cliente de chat. Para conectar de fora da VPS, use seu
+IP público como servidor de conexão e libere a porta TCP `5222` (ou a definida
+em `EJABBERD_XMPP_PORT`) no firewall da VPS e nas regras de entrada do provedor.
+O cliente Python utiliza a mesma conta
 XMPP. O cadastro não implementa a ponte MQTT da atividade.
 
 ## Painel administrativo

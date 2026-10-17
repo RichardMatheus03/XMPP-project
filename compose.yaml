@@ -50,7 +50,7 @@ services:
     ports:
       - "${EJABBERD_WEB_BIND:-0.0.0.0}:${EJABBERD_WEB_PORT:-5280}:5280"
       - "127.0.0.1:${EJABBERD_HTTPS_PORT:-5443}:5443"
-      - "127.0.0.1:${EJABBERD_XMPP_PORT:-5222}:5222"
+      - "0.0.0.0:${EJABBERD_XMPP_PORT:-5222}:5222"
     volumes:
       - ejabberd_database:/opt/ejabberd/database
       - ejabberd_logs:/opt/ejabberd/logs
