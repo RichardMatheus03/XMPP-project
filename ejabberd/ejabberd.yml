@@ -46,30 +46,26 @@ certfiles:
   - /opt/ejabberd/conf/server.pem
 
 listen:
-  -
-    port: PORT_C2S
+  - port: PORT_C2S
     ip: "::"
     module: ejabberd_c2s
     max_stanza_size: 262144
     shaper: c2s_shaper
     access: c2s
     starttls_required: STARTTLS_REQUIRED
-  -
-    port: PORT_C2S_TLS
+  - port: PORT_C2S_TLS
     ip: "::"
     module: ejabberd_c2s
     max_stanza_size: 262144
     shaper: c2s_shaper
     access: c2s
     tls: true
-  -
-    port: PORT_S2S
+  - port: PORT_S2S
     ip: "::"
     module: ejabberd_s2s_in
     max_stanza_size: 524288
     shaper: s2s_shaper
-  -
-    port: PORT_HTTP_TLS
+  - port: PORT_HTTP_TLS
     ip: "::"
     module: ejabberd_http
     tls: true
@@ -80,8 +76,7 @@ listen:
       /captcha: ejabberd_captcha
       /upload: mod_http_upload
       /websocket: ejabberd_http_ws
-  -
-    port: PORT_HTTP
+  - port: PORT_HTTP
     ip: "::"
     module: ejabberd_http
     request_handlers:
@@ -89,8 +84,7 @@ listen:
       # WebSocket sem TLS para o chat do laboratório; o Compose define a interface publicada.
       /websocket: ejabberd_http_ws
       /.well-known/acme-challenge: ejabberd_acme
-  -
-    port: PORT_BROWSER
+  - port: PORT_BROWSER
     ip: "::"
     module: ejabberd_http
     request_handlers:
@@ -99,8 +93,7 @@ listen:
   # da versão 26.09: o nome temporário em Base64 pode conter '/' e causar
   # erro enoent na inicialização. Sem o socket, ejabberdctl usa RPC Erlang
   # local automaticamente, inclusive no healthcheck e na criação do admin.
-  -
-    port: PORT_STUN
+  - port: PORT_STUN
     ip: "::"
     transport: udp
     module: ejabberd_stun
@@ -111,8 +104,7 @@ listen:
     # turn_ipv4_address: "203.0.113.3"
     ## The server's public IPv6 address:
     # turn_ipv6_address: "2001:db8::3"
-  -
-    port: PORT_MQTT
+  - port: PORT_MQTT
     ip: "::"
     module: mod_mqtt
     backlog: 1000

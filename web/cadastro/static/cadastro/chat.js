@@ -38,7 +38,9 @@
       this.jid = "";
       this.seen.clear();
       if (!window.Strophe) {
-        this.fail("Não foi possível carregar a biblioteca do chat. Recarregue a página e tente novamente.");
+        this.fail(
+          "Não foi possível carregar a biblioteca do chat. Recarregue a página e tente novamente.",
+        );
         return;
       }
       let endpoint;
@@ -58,7 +60,9 @@
         this.connection = connection;
         this.handshakeTimer = setTimeout(() => {
           if (connection === this.connection) {
-            this.fail("Não foi possível concluir a conexão com o chat. Verifique o endereço, a porta do WebSocket e o firewall do servidor.");
+            this.fail(
+              "Não foi possível concluir a conexão com o chat. Verifique o endereço, a porta do WebSocket e o firewall do servidor.",
+            );
           }
         }, 15000);
         connection.connect(
@@ -67,7 +71,9 @@
           (status) => this.onStatus(connection, status),
         );
       } catch {
-        this.fail("Não foi possível conectar ao chat. Verifique o ejabberd e a porta do WebSocket.");
+        this.fail(
+          "Não foi possível conectar ao chat. Verifique o ejabberd e a porta do WebSocket.",
+        );
       }
     }
 
@@ -82,26 +88,39 @@
           clearTimeout(this.handshakeTimer);
           connection.pass = "";
           this.jid = connection.jid;
-          connection.addHandler((stanza) => {
-            if (connection !== this.connection) return false;
-            this.receiveMessage(stanza);
-            return true;
-          }, null, "message");
-          connection.addHandler((stanza) => {
-            if (connection !== this.connection) return false;
-            this.receiveIq(stanza);
-            return true;
-          }, null, "iq", ["get", "set"]);
+          connection.addHandler(
+            (stanza) => {
+              if (connection !== this.connection) return false;
+              this.receiveMessage(stanza);
+              return true;
+            },
+            null,
+            "message",
+          );
+          connection.addHandler(
+            (stanza) => {
+              if (connection !== this.connection) return false;
+              this.receiveIq(stanza);
+              return true;
+            },
+            null,
+            "iq",
+            ["get", "set"],
+          );
           connection.addTimedHandler(30000, () => {
             if (connection !== this.connection) return false;
             try {
               connection.sendIQ(
-                $iq({ type: "get", to: connection.domain }).c("ping", { xmlns: NS.ping }),
+                $iq({ type: "get", to: connection.domain }).c("ping", {
+                  xmlns: NS.ping,
+                }),
                 null,
                 (stanza) => {
                   // Uma resposta de erro também indica que o servidor está respondendo.
                   if (!stanza && connection === this.connection) {
-                    this.fail("O servidor parou de responder. Entre novamente para reconectar.");
+                    this.fail(
+                      "O servidor parou de responder. Entre novamente para reconectar.",
+                    );
                   }
                 },
                 15000,
@@ -116,18 +135,25 @@
           this.setState("online");
           break;
         case Strophe.Status.AUTHFAIL:
-          this.fail("Não foi possível autenticar sua conta. Confira o usuário e a senha e tente novamente.");
+          this.fail(
+            "Não foi possível autenticar sua conta. Confira o usuário e a senha e tente novamente.",
+          );
           break;
         case Strophe.Status.ERROR:
         case Strophe.Status.CONNFAIL:
         case Strophe.Status.CONNTIMEOUT:
-          this.fail("Não foi possível conectar ao chat. Verifique o domínio, o ejabberd e a porta do WebSocket.");
+          this.fail(
+            "Não foi possível conectar ao chat. Verifique o domínio, o ejabberd e a porta do WebSocket.",
+          );
           break;
         case Strophe.Status.DISCONNECTED:
           clearTimeout(this.handshakeTimer);
           connection.pass = "";
           this.connection = null;
-          this.setState("offline", "A conexão foi encerrada. Entre novamente para continuar.");
+          this.setState(
+            "offline",
+            "A conexão foi encerrada. Entre novamente para continuar.",
+          );
           break;
       }
     }
@@ -156,23 +182,34 @@
       const response = $iq({
         type: "result",
         id: stanza.getAttribute("id"),
-        ...(stanza.getAttribute("from") ? { to: stanza.getAttribute("from") } : {}),
+        ...(stanza.getAttribute("from")
+          ? { to: stanza.getAttribute("from") }
+          : {}),
       });
-      if (stanza.getAttribute("type") === "get" && child(stanza, NS.ping, "ping")) {
+      if (
+        stanza.getAttribute("type") === "get" &&
+        child(stanza, NS.ping, "ping")
+      ) {
         this.connection.send(response);
         return;
       }
       const query = child(stanza, NS.disco, "query");
       if (stanza.getAttribute("type") === "get" && query) {
-        response.c("query", {
-          xmlns: NS.disco,
-          ...(query.hasAttribute("node") ? { node: query.getAttribute("node") } : {}),
-        }).c("identity", { category: "client", type: "web", name: "Conversa" }).up();
+        response
+          .c("query", {
+            xmlns: NS.disco,
+            ...(query.hasAttribute("node")
+              ? { node: query.getAttribute("node") }
+              : {}),
+          })
+          .c("identity", { category: "client", type: "web", name: "Conversa" })
+          .up();
         for (const namespace of [NS.disco, NS.ping, NS.receipts]) {
           response.c("feature", { var: namespace }).up();
         }
       } else {
-        response.attrs({ type: "error" })
+        response
+          .attrs({ type: "error" })
           .c("error", { type: "cancel" })
           .c("service-unavailable", { xmlns: Strophe.NS.STANZAS });
       }
@@ -191,20 +228,27 @@
       if (!["chat", "normal"].includes(type)) return;
       const receipt = child(stanza, NS.receipts, "received");
       if (receipt) {
-        this.emit("receipt", { from: bare(from), id: receipt.getAttribute("id") });
+        this.emit("receipt", {
+          from: bare(from),
+          id: receipt.getAttribute("id"),
+        });
       }
       const body = child(stanza, NS.client, "body");
       if (!body?.textContent) return;
       if (id && child(stanza, NS.receipts, "request")) {
         this.connection.send(
-          $msg({ type: "chat", to: from }).c("received", { xmlns: NS.receipts, id }),
+          $msg({ type: "chat", to: from }).c("received", {
+            xmlns: NS.receipts,
+            id,
+          }),
         );
       }
       const key = from + "\0" + id;
       if (id && this.seen.has(key)) return;
       if (id) {
         this.seen.add(key);
-        if (this.seen.size > 2000) this.seen.delete(this.seen.values().next().value);
+        if (this.seen.size > 2000)
+          this.seen.delete(this.seen.values().next().value);
       }
       const stamp = child(stanza, NS.delay, "delay")?.getAttribute("stamp");
       const date = stamp ? new Date(stamp) : new Date();
@@ -222,7 +266,10 @@
       }
       const id = this.connection.getUniqueId("message");
       this.connection.send(
-        $msg({ type: "chat", to, id }).c("body").t(body).up()
+        $msg({ type: "chat", to, id })
+          .c("body")
+          .t(body)
+          .up()
           .c("request", { xmlns: NS.receipts }),
       );
       return id;
@@ -250,8 +297,14 @@
   const client = new XmppClient();
   // Histórico e rascunhos existem somente nesta aba, sem armazenamento persistente.
   const conversations = new Map();
-  const timeFormat = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const dayFormat = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" });
+  const timeFormat = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const dayFormat = new Intl.DateTimeFormat("pt-BR", {
+    day: "numeric",
+    month: "long",
+  });
   let activeJid = "";
   let accountJid = "";
 
@@ -270,7 +323,11 @@
     let jid = value.trim().toLowerCase();
     if (!jid.includes("@")) jid += "@" + config.domain;
     if (!/^[^@\s/\x00-\x1f\x7f]+@[^@\s/\x00-\x1f\x7f]+$/.test(jid)) {
-      throw new Error("Informe um usuário ou endereço válido, como nome@" + config.domain + ".");
+      throw new Error(
+        "Informe um usuário ou endereço válido, como nome@" +
+          config.domain +
+          ".",
+      );
     }
     return jid;
   }
@@ -278,7 +335,10 @@
   const displayName = (jid) => jid.split("@")[0];
   const initials = (jid) => displayName(jid).slice(0, 2).toUpperCase();
   const isOnline = () => client.state === "online";
-  const showError = (element, message) => { element.textContent = message; element.hidden = !message; };
+  const showError = (element, message) => {
+    element.textContent = message;
+    element.hidden = !message;
+  };
 
   function makeElement(tag, className, text) {
     const element = document.createElement(tag);
@@ -288,15 +348,19 @@
   }
 
   function getConversation(jid) {
-    if (!conversations.has(jid)) conversations.set(jid, { jid, messages: [], unread: 0, draft: "" });
+    if (!conversations.has(jid))
+      conversations.set(jid, { jid, messages: [], unread: 0, draft: "" });
     return conversations.get(jid);
   }
 
   function renderConversations() {
     const list = $("#conversation-list");
     const filter = search.value.trim().toLowerCase();
-    const items = Array.from(conversations.values()).sort((a, b) =>
-      (b.messages.at(-1)?.date.getTime() || 0) - (a.messages.at(-1)?.date.getTime() || 0));
+    const items = Array.from(conversations.values()).sort(
+      (a, b) =>
+        (b.messages.at(-1)?.date.getTime() || 0) -
+        (a.messages.at(-1)?.date.getTime() || 0),
+    );
     const fragment = document.createDocumentFragment();
     let visible = 0;
     for (const conversation of items) {
@@ -306,33 +370,68 @@
       button.type = "button";
       button.disabled = !isOnline();
       button.setAttribute("aria-label", "Conversa com " + conversation.jid);
-      button.setAttribute("aria-current", String(conversation.jid === activeJid));
+      button.setAttribute(
+        "aria-current",
+        String(conversation.jid === activeJid),
+      );
       button.append(makeElement("span", "avatar", initials(conversation.jid)));
       const info = makeElement("span", "conversation-info");
       const line = makeElement("span", "conversation-line");
-      line.append(makeElement("span", "conversation-name", displayName(conversation.jid)));
+      line.append(
+        makeElement("span", "conversation-name", displayName(conversation.jid)),
+      );
       const last = conversation.messages.at(-1);
-      if (last) line.append(makeElement("time", "conversation-time", timeFormat.format(last.date)));
-      info.append(line, makeElement("span", "conversation-preview",
-        last ? (last.outgoing ? "Você: " : "") + last.body : "Nenhuma mensagem ainda"));
+      if (last)
+        line.append(
+          makeElement(
+            "time",
+            "conversation-time",
+            timeFormat.format(last.date),
+          ),
+        );
+      info.append(
+        line,
+        makeElement(
+          "span",
+          "conversation-preview",
+          last
+            ? (last.outgoing ? "Você: " : "") + last.body
+            : "Nenhuma mensagem ainda",
+        ),
+      );
       button.append(info);
-      if (conversation.unread) button.append(makeElement("span", "unread", String(conversation.unread)));
-      button.addEventListener("click", () => selectConversation(conversation.jid));
+      if (conversation.unread)
+        button.append(
+          makeElement("span", "unread", String(conversation.unread)),
+        );
+      button.addEventListener("click", () =>
+        selectConversation(conversation.jid),
+      );
       fragment.append(button);
     }
     list.replaceChildren(fragment);
     $("#sidebar-empty").hidden = visible > 0;
-    $("#sidebar-empty-text").textContent = filter ? "Nenhuma conversa encontrada." :
-      (isOnline() ? "Sua próxima conversa começa aqui." : "Um lugar para suas conversas.");
-    $("#sidebar-empty-help").textContent = filter ? "Tente outro nome." :
-      (isOnline() ? "Use o + para falar com alguém." : "Entre na sua conta para começar.");
+    $("#sidebar-empty-text").textContent = filter
+      ? "Nenhuma conversa encontrada."
+      : isOnline()
+        ? "Sua próxima conversa começa aqui."
+        : "Um lugar para suas conversas.";
+    $("#sidebar-empty-help").textContent = filter
+      ? "Tente outro nome."
+      : isOnline()
+        ? "Use o + para falar com alguém."
+        : "Entre na sua conta para começar.";
   }
 
   function setMessageStatus(message, status) {
     message.status = status;
     if (message.statusElement) {
       message.statusElement.dataset.status = status;
-      message.statusElement.textContent = { sent: "Enviada", delivered: "Entregue", failed: "Não entregue" }[status];
+      message.statusElement.textContent = {
+        sent: "Enviada",
+        delivered: "Entregue",
+        failed: "Não entregue",
+      }[status];
     }
   }
 
@@ -340,10 +439,20 @@
     const previousDay = messageLog.lastElementChild?.dataset.day;
     const day = message.date.toLocaleDateString("pt-BR");
     if (previousDay !== day) {
-      messageLog.append(makeElement("div", "day-divider",
-        day === new Date().toLocaleDateString("pt-BR") ? "Hoje" : dayFormat.format(message.date)));
+      messageLog.append(
+        makeElement(
+          "div",
+          "day-divider",
+          day === new Date().toLocaleDateString("pt-BR")
+            ? "Hoje"
+            : dayFormat.format(message.date),
+        ),
+      );
     }
-    const row = makeElement("div", "message-row" + (message.outgoing ? " outgoing" : ""));
+    const row = makeElement(
+      "div",
+      "message-row" + (message.outgoing ? " outgoing" : ""),
+    );
     row.dataset.day = day;
     const bubble = makeElement("div", "message-bubble");
     bubble.append(makeElement("p", "message-body", message.body));
@@ -364,7 +473,8 @@
 
   function selectConversation(jid) {
     if (!isOnline()) return;
-    if (activeJid && conversations.has(activeJid)) conversations.get(activeJid).draft = messageInput.value;
+    if (activeJid && conversations.has(activeJid))
+      conversations.get(activeJid).draft = messageInput.value;
     activeJid = jid;
     const conversation = getConversation(jid);
     messageInput.value = conversation.draft;
@@ -415,8 +525,11 @@
     const label = $("#connection-label");
     label.dataset.state = state;
     label.textContent = {
-      connecting: "Conectando…", authenticating: "Autenticando…", online: "Conectado",
-      offline: "Desconectado", error: "Falha na conexão",
+      connecting: "Conectando…",
+      authenticating: "Autenticando…",
+      online: "Conectado",
+      offline: "Desconectado",
+      error: "Falha na conexão",
     }[state];
     loginButton.disabled = busy;
     loginButton.textContent = busy ? "Conectando…" : "Entrar no chat →";
@@ -469,7 +582,9 @@
     try {
       jid = normalizeJid(userInput.value);
       if (jid.split("@")[1] !== config.domain.toLowerCase()) {
-        throw new Error("Use sua conta @" + config.domain + " para entrar neste servidor.");
+        throw new Error(
+          "Use sua conta @" + config.domain + " para entrar neste servidor.",
+        );
       }
       if (!passwordInput.value) throw new Error("Informe sua senha.");
     } catch (error) {
@@ -497,7 +612,10 @@
     event.preventDefault();
     try {
       const jid = normalizeJid(recipientInput.value);
-      if (jid === accountJid) throw new Error("Informe a conta de outra pessoa para iniciar a conversa.");
+      if (jid === accountJid)
+        throw new Error(
+          "Informe a conta de outra pessoa para iniciar a conversa.",
+        );
       selectConversation(jid);
       dialog.close();
       messageInput.focus();
@@ -506,7 +624,9 @@
     }
   });
   search.addEventListener("input", renderConversations);
-  $("#back-to-conversations").addEventListener("click", () => shell.classList.remove("show-thread"));
+  $("#back-to-conversations").addEventListener("click", () =>
+    shell.classList.remove("show-thread"),
+  );
   $("#disconnect").addEventListener("click", () => {
     client.disconnect();
     conversations.clear();
@@ -536,7 +656,13 @@
     if (!body || !activeJid || !isOnline()) return;
     try {
       const id = client.sendMessage(activeJid, body);
-      const message = { id, body, outgoing: true, date: new Date(), status: "sent" };
+      const message = {
+        id,
+        body,
+        outgoing: true,
+        date: new Date(),
+        status: "sent",
+      };
       getConversation(activeJid).messages.push(message);
       appendMessage(message);
       messageInput.value = "";
@@ -555,33 +681,50 @@
     const message = { ...detail, outgoing: false };
     conversation.messages.push(message);
     if (activeJid === detail.from) appendMessage(message);
-    if (activeJid !== detail.from || document.visibilityState !== "visible" ||
-        (matchMedia("(max-width: 700px)").matches && !shell.classList.contains("show-thread"))) {
+    if (
+      activeJid !== detail.from ||
+      document.visibilityState !== "visible" ||
+      (matchMedia("(max-width: 700px)").matches &&
+        !shell.classList.contains("show-thread"))
+    ) {
       conversation.unread++;
     }
     renderConversations();
   });
   client.addEventListener("receipt", ({ detail }) => {
-    const message = conversations.get(detail.from)?.messages.find((item) => item.outgoing && item.id === detail.id);
+    const message = conversations
+      .get(detail.from)
+      ?.messages.find((item) => item.outgoing && item.id === detail.id);
     if (message) setMessageStatus(message, "delivered");
   });
   client.addEventListener("send-error", ({ detail }) => {
-    const message = conversations.get(detail.from)?.messages.find((item) => item.outgoing && item.id === detail.id);
+    const message = conversations
+      .get(detail.from)
+      ?.messages.find((item) => item.outgoing && item.id === detail.id);
     if (!message) return;
     setMessageStatus(message, "failed");
-    if (activeJid === detail.from) showError($("#chat-notice"),
-      "Não foi possível entregar a mensagem. Confira o endereço e se a outra pessoa está conectada.");
+    if (activeJid === detail.from)
+      showError(
+        $("#chat-notice"),
+        "Não foi possível entregar a mensagem. Confira o endereço e se a outra pessoa está conectada.",
+      );
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && isOnline() && activeJid &&
-        (!matchMedia("(max-width: 700px)").matches || shell.classList.contains("show-thread"))) {
+    if (
+      document.visibilityState === "visible" &&
+      isOnline() &&
+      activeJid &&
+      (!matchMedia("(max-width: 700px)").matches ||
+        shell.classList.contains("show-thread"))
+    ) {
       getConversation(activeJid).unread = 0;
       renderConversations();
     }
   });
   window.addEventListener("pagehide", () => client.disconnect());
   window.addEventListener("pageshow", (event) => {
-    if (event.persisted) showError(loginError, "Entre novamente para reconectar ao chat.");
+    if (event.persisted)
+      showError(loginError, "Entre novamente para reconectar ao chat.");
   });
   renderConversations();
 })();
