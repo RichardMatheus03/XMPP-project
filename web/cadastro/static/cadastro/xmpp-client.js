@@ -28,13 +28,26 @@
     }
 
     static endpointUrl(config) {
-      if (config.websocket_url) return config.websocket_url;
-      const url = new URL(location.href);
-      url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      url.port = String(config.websocket_port);
-      url.pathname = "/websocket";
-      url.search = "";
-      url.hash = "";
+      // O transporte do chat independe do protocolo e da porta da página.
+      const endpoint =
+        config.websocket_url?.trim() ||
+        `wss://${location.hostname}/websocket`;
+      return XmppClient.validateEndpointUrl(endpoint);
+    }
+
+    static validateEndpointUrl(endpoint) {
+      let url;
+      try {
+        url = new URL(endpoint);
+      } catch {
+        throw new Error("O endereço de conexão do chat é inválido.");
+      }
+      if (url.protocol !== "wss:") {
+        throw new Error("A conexão com o chat deve usar WSS (wss://).");
+      }
+      if (url.username || url.password || endpoint.includes("#")) {
+        throw new Error("O endereço de conexão do chat é inválido.");
+      }
       return url.href;
     }
 
@@ -61,16 +74,18 @@
     }
 
     connect(url, username, password, domain) {
+      // Valida também chamadas diretas ao adaptador antes de usar a senha.
+      const endpoint = XmppClient.validateEndpointUrl(url);
       this.disconnect();
       this.jid = "";
       this.seen.clear();
       this.setState("connecting");
-      const connection = new Strophe.Connection(url);
+      const connection = new Strophe.Connection(endpoint);
       this.connection = connection;
       this.handshakeTimer = setTimeout(() => {
         if (connection === this.connection) {
           this.fail(
-            "Não foi possível concluir a conexão com o chat. Verifique o endereço, a porta do WebSocket e o firewall do servidor.",
+            "Não foi possível concluir a conexão segura com o chat. Verifique o certificado, o endereço, a porta WSS e o firewall do servidor.",
           );
         }
       }, 15000);
@@ -142,7 +157,7 @@
         case Strophe.Status.CONNFAIL:
         case Strophe.Status.CONNTIMEOUT:
           this.fail(
-            "Não foi possível conectar ao chat. Verifique o domínio, o ejabberd e a porta do WebSocket.",
+            "Não foi possível conectar com segurança ao chat. Verifique o certificado do servidor, o endereço e a porta WSS.",
           );
           break;
         case Strophe.Status.DISCONNECTED:

@@ -59,10 +59,12 @@ ejabberd. Por exemplo, o usuário `ana` resulta em `ana@localhost`.
 
 O cadastro é público para quem consegue acessar a página. O Django é publicado
 na porta `80` em todas as interfaces da máquina. O HTTP do ejabberd é publicado
-na porta `5280` em todas as interfaces para permitir a conexão do navegador na
-VPS. As portas `5443` e `5222` continuam limitadas à máquina local (`127.0.0.1`).
+na porta `5280` em todas as interfaces para o painel administrativo.
+As portas `5443` e `5222` continuam limitadas à máquina local (`127.0.0.1`).
 Para acesso pela VPS, inclua seu IP ou domínio em `DJANGO_ALLOWED_HOSTS` e
-libere TCP `80` e `5280` no firewall da máquina e nas regras do provedor.
+libere TCP `80` para a página. O chat exige um endpoint WSS configurado conforme
+a seção abaixo; o Compose atual ainda não publica esse endpoint com certificado
+válido para o IP público.
 
 O formulário aceita nomes de 3 a 64 caracteres, começando com letra ou número,
 e contendo letras, números, ponto, hífen ou sublinhado. Os nomes são convertidos
@@ -80,7 +82,7 @@ O Django entrega o template e a configuração pública. O navegador usa
 [Strophe.js 5.0.0](https://github.com/strophe/strophejs), carregado pelo CDN
 jsDelivr no `<head>` antes de `chat.js`, com versão fixa e verificação de
 integridade (SRI). A biblioteca gerencia o WebSocket, o fluxo XML, a autenticação
-SASL e o vínculo da sessão XMPP em `ws://localhost:5280/websocket`. O adaptador
+SASL e o vínculo da sessão XMPP pelo endpoint WSS configurado. O adaptador
 em `xmpp-client.js` trata conexão, presença, ping, confirmações de entrega e
 endereços JID, expondo a classe `XmppClient` e seus eventos. O arquivo `chat.js`
 cuida dos formulários, das conversas e da renderização da página. O HTML carrega
@@ -90,42 +92,42 @@ Nenhuma credencial administrativa é enviada ao navegador.
 
 ```text
 Navegador → Django /chat/ → template + JavaScript
-Navegador ⇄ WebSocket :5280/websocket ⇄ ejabberd
+Navegador ⇄ WSS /websocket ⇄ ejabberd com TLS
 ```
 
-O listener HTTP sem TLS é intencional para este laboratório. A interface
-publicada é configurada por `EJABBERD_WEB_BIND` (padrão `0.0.0.0`). Para um teste
-restrito à própria máquina, use `EJABBERD_WEB_BIND=127.0.0.1`. A porta HTTP também
-disponibiliza a tela de login do painel `/admin/`.
-A conexão HTTPS de cadastro entre Django e ejabberd continua usando o
-certificado existente. Para usar o chat por HTTPS,
-configure `XMPP_WEBSOCKET_URL=wss://seu-servidor/websocket` e um endpoint TLS
-com certificado confiável no navegador.
+O cliente aceita exclusivamente URLs `wss://`, inclusive quando a página é
+servida por HTTP. Sem `XMPP_WEBSOCKET_URL`, usa
+`wss://<host-da-pagina>/websocket`, na porta padrão `443`, independentemente da
+porta da página e de `EJABBERD_WEB_PORT`. Não há tentativa automática por `ws://`.
+URLs inválidas, com credenciais ou fragmentos são recusadas antes de conectar,
+e o erro aparece no formulário de login.
 
-Sem `XMPP_WEBSOCKET_URL`, o cliente usa o host da página e a porta publicada
-`EJABBERD_WEB_PORT`. O nome Docker `ejabberd` é utilizado apenas no backend.
-Após mudar essa configuração, recrie o serviço web.
-
-Para o teste HTTP acessado de outro computador, a porta publicada pelo ejabberd
-precisa aceitar conexões externas. No `.env` da VPS, por exemplo:
+Para outro endereço ou porta TLS, configure a URL completa no `.env`, por exemplo:
 
 ```dotenv
-EJABBERD_WEB_BIND=0.0.0.0
-XMPP_WEBSOCKET_URL=ws://IP_DA_VPS:5280/websocket
+XMPP_WEBSOCKET_URL=wss://IP_DA_VPS:5443/websocket
 ```
 
-Substitua `IP_DA_VPS` pelo endereço real, libere TCP `5280` no firewall da VPS
-e nas regras de entrada do provedor e aplique os arquivos atualizados:
+Esse exemplo exige que o ejabberd ofereça TLS na porta pública `5443`, com um
+certificado confiável no navegador e válido para `IP_DA_VPS`. A configuração
+atual ainda restringe essa porta a `127.0.0.1` e usa certificado de `localhost`;
+preparar o cliente não publica a porta nem instala o certificado na VPS.
+Um listener TLS dedicado pode publicar somente `/websocket`. O TLS pode terminar
+diretamente no ejabberd, sem proxy reverso ou HTTPS na página Django.
+
+O nome Docker `ejabberd` é utilizado apenas no backend. A conexão HTTPS de
+cadastro entre Django e ejabberd continua usando sua configuração existente.
+Após configurar o endpoint na VPS e atualizar a variável, reconstrua o serviço web:
 
 ```bash
-docker compose up -d --build --wait
+docker compose up -d --build --wait web
 ```
 
-O comando preserva os volumes e as contas. Em `docker compose ps`, o mapeamento
-esperado é `0.0.0.0:5280->5280/tcp`. O Strophe gera os identificadores das
-mensagens e do recurso, inclusive no acesso HTTP pelo IP público. Ele negocia
+O comando preserva os volumes e as contas. O Strophe gera os identificadores das
+mensagens e do recurso, inclusive quando a página é acessada por HTTP. Ele negocia
 um mecanismo SASL compatível com o servidor e o navegador; SCRAM depende de
-WebCrypto em contexto seguro, e PLAIN continua disponível no laboratório HTTP.
+WebCrypto em contexto seguro. Usar WSS protege a conexão WebSocket, mas não
+transforma uma página HTTP em contexto seguro para essas APIs do navegador.
 
 A senha é usada durante a autenticação e removida do campo e da memória do
 cliente após a autenticação ou o encerramento da conexão. Ela não é salva em
@@ -189,7 +191,7 @@ projeto para outra máquina e gere suas próprias senhas e chave Django.
 | `DJANGO_WEB_PORT` | Porta da página na máquina; padrão `80` |
 | `DJANGO_ALLOWED_HOSTS` | Nomes HTTP aceitos pelo Django, separados por vírgulas |
 | `EJABBERD_WEB_BIND` | Interface publicada para HTTP/WebSocket; padrão `0.0.0.0` |
-| `XMPP_WEBSOCKET_URL` | URL pública do WebSocket; vazio usa o host da página e `EJABBERD_WEB_PORT` |
+| `XMPP_WEBSOCKET_URL` | URL pública `wss://`; vazio usa `wss://<host-da-pagina>/websocket` na porta 443 |
 | `EJABBERD_API_HOST` | Nome de rede do container; padrão `ejabberd` |
 | `EJABBERD_API_PORT` | Porta HTTPS interna; padrão `5443` |
 | `EJABBERD_TLS_SERVER_NAME` | Identidade esperada no certificado; padrão `localhost` |

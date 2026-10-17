@@ -279,6 +279,7 @@
     event.preventDefault();
     showError(loginError, "");
     let jid;
+    let endpoint;
     try {
       jid = XmppClient.normalizeJid(userInput.value, config.domain);
       if (jid.split("@")[1] !== config.domain.toLowerCase()) {
@@ -287,6 +288,7 @@
         );
       }
       if (!passwordInput.value) throw new Error("Informe sua senha.");
+      endpoint = XmppClient.endpointUrl(config);
     } catch (error) {
       showError(loginError, error.message);
       return;
@@ -296,12 +298,13 @@
     passwordInput.type = "password";
     loginToggle.textContent = "Mostrar";
     loginToggle.setAttribute("aria-pressed", "false");
-    client.connect(
-      XmppClient.endpointUrl(config),
-      jid.split("@")[0],
-      password,
-      config.domain,
-    );
+    try {
+      client.connect(endpoint, jid.split("@")[0], password, config.domain);
+    } catch {
+      client.fail(
+        "Não foi possível iniciar a conexão segura com o chat. Confira o endereço WSS e a disponibilidade do servidor.",
+      );
+    }
   });
 
   loginToggle.addEventListener("click", () => {
